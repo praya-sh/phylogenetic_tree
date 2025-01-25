@@ -1,112 +1,150 @@
 import numpy as np
-from collections import defaultdict
 
-class Node:
-    def __init__(self, name, height=0.0):
-        self.name = name
-        self.height = height
-        self.children = []
-
-def upgma(distance_matrix, labels):
-    """
-    Implements the UPGMA algorithm for phylogenetic tree construction.
-    
-    Parameters:
-    distance_matrix: numpy array of pairwise distances
-    labels: list of taxa names
-    
-    Returns:
-    root: Root node of the constructed phylogenetic tree
-    """
-    n = len(labels)
-    # Initialize clusters with leaf nodes
-    clusters = [Node(label) for label in labels]
-    
-    # Keep track of current distances between clusters
-    distances = distance_matrix.copy()
-    
-    while len(clusters) > 1:
-        # Set diagonal to infinity to avoid selecting it as minimum
-        np.fill_diagonal(distances, np.inf)
+class UPGMAClusterer:
+    def __init__(self, distance_matrix):
+        """
+        Initialize the UPGMA clusterer with a distance matrix
         
-        # Find minimum distance
-        min_dist = np.min(distances)
-        min_i, min_j = np.where(distances == min_dist)[0][0], np.where(distances == min_dist)[1][0]
+        Args:
+            distance_matrix (numpy.ndarray): Symmetric distance matrix between sequences
+        """
+        self.original_matrix = np.array(distance_matrix, dtype=float)
+        self.matrix = self.original_matrix.copy()
+        self.num_sequences = len(self.matrix)
         
-        # Ensure min_i is smaller than min_j
-        if min_i > min_j:
-            min_i, min_j = min_j, min_i
+        # Initialize cluster tracking
+        self.clusters = [f"Seq_{i+1}" for i in range(self.num_sequences)]
+        self.cluster_sizes = np.ones(self.num_sequences, dtype=int)
+        self.cluster_mapping = {}
+    
+    def find_minimum_distance(self):
+        """
+        Find the minimum distance in the matrix, excluding diagonal and self-distances
+        
+        Returns:
+            tuple: Indices of the two closest clusters
+        """
+        # Create a mask to ignore diagonal and redundant entries
+        mask = np.triu(np.ones_like(self.matrix, dtype=bool), k=1)
+        masked_matrix = np.ma.masked_array(self.matrix, mask=~mask)
+        
+        # Find the indices of the minimum distance
+        min_index = np.unravel_index(
+            masked_matrix.argmin(), 
+            masked_matrix.shape
+        )
+        return min_index
+    
+    def merge_clusters(self, index1, index2):
+        """
+        Merge two clusters and update distance matrix
+        
+        Args:
+            index1 (int): Index of first cluster to merge
+            index2 (int): Index of second cluster to merge
+        """
+        # Calculate new cluster size using NumPy arrays
+        new_size = self.cluster_sizes[index1] + self.cluster_sizes[index2]
+        
+        # Create new cluster name
+        new_cluster_name = f"Cluster_{len(self.clusters) + 1}"
+        
+        # Store cluster merge information
+        self.cluster_mapping[new_cluster_name] = {
+            'left': self.clusters[index1],
+            'right': self.clusters[index2],
+            'left_distance': self.matrix[index1, index2] / 2,
+            'right_distance': self.matrix[index1, index2] / 2
+        }
+        
+        # Update distance matrix
+        new_distances = np.zeros(len(self.matrix) - 1)
+        for i in range(len(self.matrix)):
+            if i != index1 and i != index2:
+                # UPGMA average linkage calculation
+                new_dist = (
+                    self.matrix[index1, i] * self.cluster_sizes[index1] + 
+                    self.matrix[index2, i] * self.cluster_sizes[index2]
+                ) / new_size
+                new_distances[i if i < min(index1, index2) else i-1] = new_dist
+        
+        # Reconstruct matrix and cluster tracking
+        self.matrix = np.delete(self.matrix, [index1, index2], axis=0)
+        self.matrix = np.delete(self.matrix, [index1, index2], axis=1)
+        
+        # Add new row and column
+        self.matrix = np.pad(self.matrix, ((0, 1), (0, 1)), mode='constant')
+        self.matrix[-1, :-1] = new_distances[:-1]
+        self.matrix[:-1, -1] = new_distances[:-1]
+        
+        # Update clusters and sizes using lists and NumPy array
+        self.clusters.append(new_cluster_name)
+        self.cluster_sizes = np.delete(self.cluster_sizes, [index1, index2])
+        self.cluster_sizes = np.append(self.cluster_sizes, new_size)
+        
+        # Remove merged clusters
+        del self.clusters[max(index1, index2)]
+        del self.clusters[min(index1, index2)]
+    
+    def cluster(self):
+        """
+        Perform complete UPGMA clustering
+        
+        Returns:
+            dict: Cluster mapping representing the hierarchical clustering
+        """
+        while len(self.clusters) > 1:
+            # Find minimum distance indices
+            index1, index2 = self.find_minimum_distance()
             
-        # Calculate height (average distance / 2)
-        height = distances[min_i, min_j] / 2.0
+            # Merge the clusters
+            self.merge_clusters(index1, index2)
         
-        # Create new node
-        new_node = Node(f"Node_{min_i}_{min_j}", height)
-        new_node.children = [clusters[min_i], clusters[min_j]]
-        
-        # Create new distance matrix with size reduced by 1
-        new_size = len(clusters) - 1
-        new_distances = np.zeros((new_size, new_size))
-        
-        # Map to keep track of new matrix indices
-        old_to_new = {}
-        new_idx = 0
-        for old_idx in range(len(clusters)):
-            if old_idx != min_i and old_idx != min_j:
-                old_to_new[old_idx] = new_idx
-                new_idx += 1
-        
-        # Fill in the new distance matrix
-        for i in range(len(clusters)):
-            if i == min_i or i == min_j:
-                continue
-            for j in range(i + 1, len(clusters)):
-                if j == min_i or j == min_j:
-                    continue
-                new_i, new_j = old_to_new[i], old_to_new[j]
-                new_distances[new_i, new_j] = distances[i, j]
-                new_distances[new_j, new_i] = distances[i, j]
-        
-        # Calculate and fill in distances to the new cluster
-        for i in range(len(clusters)):
-            if i != min_i and i != min_j:
-                new_i = old_to_new[i]
-                dist_to_new = (distances[i, min_i] + distances[i, min_j]) / 2.0
-                new_distances[new_i, new_size - 1] = dist_to_new
-                new_distances[new_size - 1, new_i] = dist_to_new
-        
-        # Update clusters and distances
-        clusters = [c for idx, c in enumerate(clusters) if idx not in (min_i, min_j)]
-        clusters.append(new_node)
-        distances = new_distances
-        
-    return clusters[0]
-
-def print_tree(node, level=0):
-    """
-    Print the phylogenetic tree in a hierarchical format.
-    """
-    indent = "  " * level
-    print(f"{indent}{node.name} (height: {node.height:.2f})")
-    for child in node.children:
-        print_tree(child, level + 1)
-
-def example_usage():
-    # Example distance matrix and labels
-    labels = ['A', 'B', 'C', 'D']
-    distance_matrix = np.array([
-        [0.0, 4.0, 7.0, 6.0],
-        [4.0, 0.0, 7.0, 6.0],
-        [7.0, 7.0, 0.0, 5.0],
-        [6.0, 6.0, 5.0, 0.0]
-    ])
-
-    # Run UPGMA
-    root = upgma(distance_matrix, labels)
+        return self.cluster_mapping
     
-    # Print the resulting tree
-    print("Phylogenetic Tree:")
-    print_tree(root)
+    def get_newick_tree(self):
+        """
+        Convert cluster mapping to Newick tree format
+        
+        Returns:
+            str: Newick tree representation
+        """
+        def build_newick(cluster_name):
+            # Recursive Newick tree construction
+            if cluster_name in [f"Seq_{i+1}" for i in range(self.num_sequences)]:
+                return cluster_name
+            
+            node = self.cluster_mapping[cluster_name]
+            left = build_newick(node['left'])
+            right = build_newick(node['right'])
+            
+            return f"({left}:{node['left_distance']},{right}:{node['right_distance']})"
+        
+        # Get the final cluster (root of the tree)
+        final_cluster = self.clusters[0]
+        return build_newick(final_cluster) + ";"
+
+# Example usage
+def main():
+    # Example distance matrix
+    distance_matrix = np.array([
+        [0, 2, 3, 4],
+        [2, 0, 5, 6],
+        [3, 5, 0, 1],
+        [4, 6, 1, 0]
+    ])
+    
+    # Perform UPGMA clustering
+    clusterer = UPGMAClusterer(distance_matrix)
+    cluster_mapping = clusterer.cluster()
+    
+    # Print cluster mapping and Newick tree
+    print("Cluster Mapping:")
+    for cluster, details in cluster_mapping.items():
+        print(f"{cluster}: {details}")
+    
+    print("\nNewick Tree:")
+    print(clusterer.get_newick_tree())
 
 if __name__ == "__main__":
-    example_usage()
+    main()
