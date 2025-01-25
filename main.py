@@ -140,6 +140,8 @@ def load_and_align_sequences(self, file_path):
         ) for seq in raw_sequences
     ]
     
+
+    #new bug
     print(f"Loaded {len(self.sequences)} sequences")
     print(f"Truncated to consistent length of {min_length} bases")
 
