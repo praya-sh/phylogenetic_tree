@@ -178,7 +178,7 @@ def run_complete_analysis(fasta_file='sequences.fasta'):
     except Exception as e:
         print(f"\nError during analysis: {str(e)}")
         print("Please check the FASTA file format and sequence alignment.")
-# Replace the existing main block
+
 if __name__ == "__main__":
     run_complete_analysis('sequences.fasta')
     #run_complete_analysis(num_species=16, seq_length=200)
