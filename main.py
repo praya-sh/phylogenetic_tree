@@ -120,15 +120,46 @@ class PhylogeneticWorkflow:
             except:
                 print("Unable to create ASCII tree visualization")
 
-def run_complete_analysis(num_species=5, seq_length=100):
-    """Run complete phylogenetic analysis workflow"""
+def load_and_align_sequences(self, file_path):
+    """Load sequences, align, and truncate to consistent length"""
+    # Load sequences
+    raw_sequences = list(SeqIO.parse(file_path, "fasta"))
+    
+    # Check sequence lengths
+    seq_lengths = [len(seq) for seq in raw_sequences]
+    
+    # Truncate to minimum length
+    min_length = min(seq_lengths)
+    
+    # Truncate sequences
+    self.sequences = [
+        SeqRecord(
+            Seq(str(seq.seq)[:min_length]),  # Truncate sequence
+            id=seq.id,
+            description=f"Truncated to {min_length} bases"
+        ) for seq in raw_sequences
+    ]
+    
+    print(f"Loaded {len(self.sequences)} sequences")
+    print(f"Truncated to consistent length of {min_length} bases")
+
+# Replace the previous load_sequences method
+PhylogeneticWorkflow.load_sequences = load_and_align_sequences
+
+# Update run_complete_analysis to use the new method
+def run_complete_analysis(fasta_file='sequences.fasta'):
+    """Run complete phylogenetic analysis workflow with real dataset"""
     try:
         workflow = PhylogeneticWorkflow()
         
         print("=== Starting Phylogenetic Analysis ===")
         
-        print("\n1. Generating sample sequences...")
-        workflow.generate_sample_data(num_species=num_species, seq_length=seq_length)
+        print("\n1. Loading and aligning sequences...")
+        workflow.load_sequences(fasta_file)  # Note the method name is still load_sequences
+
+        # print("\n1. Generating sample sequences...")
+        # workflow.generate_sample_data(num_species=num_species, seq_length=seq_length)
+        
         
         print("\n2. Creating sequence alignment...")
         workflow.create_alignment()
@@ -146,7 +177,8 @@ def run_complete_analysis(num_species=5, seq_length=100):
         
     except Exception as e:
         print(f"\nError during analysis: {str(e)}")
-        print("Please check the error message above and ensure all dependencies are installed correctly.")
-
+        print("Please check the FASTA file format and sequence alignment.")
+# Replace the existing main block
 if __name__ == "__main__":
-    run_complete_analysis(num_species=16, seq_length=200)
+    run_complete_analysis('sequences.fasta')
+    #run_complete_analysis(num_species=16, seq_length=200)
