@@ -10,7 +10,6 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 
-
 class PhylogeneticWorkflow:
     def __init__(self):
         self.sequences = []
@@ -140,13 +139,13 @@ def load_and_align_sequences(self, file_path):
         ) for seq in raw_sequences
     ]
     
+
+    #new bug
     print(f"Loaded {len(self.sequences)} sequences")
     print(f"Truncated to consistent length of {min_length} bases")
 
-# Replace the previous load_sequences method
 PhylogeneticWorkflow.load_sequences = load_and_align_sequences
 
-# Update run_complete_analysis to use the new method
 def run_complete_analysis(fasta_file='sequences.fasta'):
     """Run complete phylogenetic analysis workflow with real dataset"""
     try:
@@ -178,7 +177,7 @@ def run_complete_analysis(fasta_file='sequences.fasta'):
     except Exception as e:
         print(f"\nError during analysis: {str(e)}")
         print("Please check the FASTA file format and sequence alignment.")
-# Replace the existing main block
+
 if __name__ == "__main__":
     run_complete_analysis('sequences.fasta')
     #run_complete_analysis(num_species=16, seq_length=200)

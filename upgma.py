@@ -1,4 +1,6 @@
 import numpy as np
+from ete3 import Tree
+import matplotlib.pyplot as plt
 
 class UPGMAClusterer:
     def __init__(self, distance_matrix):
@@ -43,7 +45,7 @@ class UPGMAClusterer:
             index1 (int): Index of first cluster to merge
             index2 (int): Index of second cluster to merge
         """
-        # Calculate new cluster size using NumPy arrays
+        # Calculate new cluster size
         new_size = self.cluster_sizes[index1] + self.cluster_sizes[index2]
         
         # Create new cluster name
@@ -77,7 +79,7 @@ class UPGMAClusterer:
         self.matrix[-1, :-1] = new_distances[:-1]
         self.matrix[:-1, -1] = new_distances[:-1]
         
-        # Update clusters and sizes using lists and NumPy array
+        # Update clusters and sizes
         self.clusters.append(new_cluster_name)
         self.cluster_sizes = np.delete(self.cluster_sizes, [index1, index2])
         self.cluster_sizes = np.append(self.cluster_sizes, new_size)
@@ -124,27 +126,52 @@ class UPGMAClusterer:
         final_cluster = self.clusters[0]
         return build_newick(final_cluster) + ";"
 
-# Example usage
+def visualize_tree(newick):
+    from Bio import Phylo
+    from io import StringIO
+
+    # Convert Newick string into a tree object
+    tree = Phylo.read(StringIO(newick), "newick")
+
+    # Create a Matplotlib figure
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    # Draw the tree with a better layout
+    Phylo.draw(
+        tree,
+        axes=ax,
+        branch_labels=lambda c: f"{c.branch_length:.2f}" if c.branch_length else "",
+        do_show=False,
+    )
+
+    # Enhance visualization
+    ax.set_title("Improved Phylogenetic Tree Visualization", fontsize=14)
+    ax.set_xlabel("Branch Length", fontsize=12)
+    ax.set_ylabel("Nodes", fontsize=12)
+    plt.show()
+
+# Main function to execute clustering and visualization
 def main():
     # Example distance matrix
     distance_matrix = np.array([
-        [0, 2, 3, 4],
-        [2, 0, 5, 6],
-        [3, 5, 0, 1],
-        [4, 6, 1, 0]
-    ])
+    [0.0, 8.0, 4.0, 10.0],
+    [8.0, 0.0, 6.0, 8.0],
+    [4.0, 6.0, 0.0, 6.0],
+    [10.0, 8.0, 6.0, 0.0]
+])
+    
     
     # Perform UPGMA clustering
     clusterer = UPGMAClusterer(distance_matrix)
     cluster_mapping = clusterer.cluster()
     
-    # Print cluster mapping and Newick tree
-    print("Cluster Mapping:")
-    for cluster, details in cluster_mapping.items():
-        print(f"{cluster}: {details}")
-    
+    # Generate and print the Newick tree
+    newick_tree = clusterer.get_newick_tree()
     print("\nNewick Tree:")
-    print(clusterer.get_newick_tree())
+    print(newick_tree)
+    
+    # Visualize the tree
+    visualize_tree(newick_tree)
 
 if __name__ == "__main__":
     main()
