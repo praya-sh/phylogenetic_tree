@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')  
 import matplotlib.pyplot as plt
+from Bio import AlignIO
 
 
 class PhylogeneticWorkflow:
@@ -120,29 +121,48 @@ class PhylogeneticWorkflow:
                 print("Unable to create ASCII tree visualization")
 
 def load_and_align_sequences(self, file_path):
-    """Load sequences, align, and truncate to consistent length"""
-    # Load sequences
+    """
+    Simple sequence alignment by padding sequences to match length
+    
+    Parameters:
+    -----------
+    file_path : str
+        Path to the input FASTA file
+    """
+    # Load raw sequences
     raw_sequences = list(SeqIO.parse(file_path, "fasta"))
     
-    # Check sequence lengths
-    seq_lengths = [len(seq) for seq in raw_sequences]
+    if len(raw_sequences) < 2:
+        raise ValueError("At least two sequences are required for alignment")
     
-    # Truncate to minimum length
-    min_length = min(seq_lengths)
+    # Find maximum sequence length
+    max_length = max(len(seq) for seq in raw_sequences)
     
-    # Truncate sequences
-    self.sequences = [
-        SeqRecord(
-            Seq(str(seq.seq)[:min_length]),  # Truncate sequence
+    # Pad sequences with gaps to match maximum length
+    aligned_sequences = []
+    for seq in raw_sequences:
+        # Create padded sequence
+        padded_seq = seq.seq + '-' * (max_length - len(seq))
+        
+        # Create new SeqRecord with padded sequence
+        aligned_record = SeqRecord(
+            Seq(str(padded_seq)),
             id=seq.id,
-            description=f"Truncated to {min_length} bases"
-        ) for seq in raw_sequences
-    ]
+            description=f"Padded to {max_length} bases"
+        )
+        aligned_sequences.append(aligned_record)
     
+    # Create Multiple Sequence Alignment
+    self.alignment = MultipleSeqAlignment(aligned_sequences)
+    self.sequences = aligned_sequences
+    
+    print(f"Aligned {len(self.sequences)} sequences")
+    print(f"Alignment length: {self.alignment.get_alignment_length()} bases")
+    
+    # Write alignment to file
+    AlignIO.write(self.alignment, "alignment.fasta", "fasta")
+# Add the method to the PhylogeneticWorkflow class
 
-    #new bug
-    print(f"Loaded {len(self.sequences)} sequences")
-    print(f"Truncated to consistent length of {min_length} bases")
 
 PhylogeneticWorkflow.load_sequences = load_and_align_sequences
 
