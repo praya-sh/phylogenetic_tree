@@ -145,7 +145,7 @@ def visualize_tree(newick):
     )
 
     # Enhance visualization
-    ax.set_title("Improved Phylogenetic Tree Visualization", fontsize=14)
+    ax.set_title("Phylogenetic Tree Visualization", fontsize=14)
     ax.set_xlabel("Branch Length", fontsize=12)
     ax.set_ylabel("Nodes", fontsize=12)
     plt.show()
